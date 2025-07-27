@@ -1,0 +1,25 @@
+title: ONYX-GATE
+description: The elegant gateway to unbreakable security - Premium Pre-Boot Authentication with FIDO2 and anti-keylogger protection
+url: "https://onyx-gate.github.io"
+baseurl: "/onyx-gate"
+
+# Theme
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# SEO
+lang: en
+author: ONYX-GATE Project
+
+# Social
+github_username: onyx-gate
+
+# Exclude files
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor

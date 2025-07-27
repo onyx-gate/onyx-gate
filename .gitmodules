@@ -1,0 +1,43 @@
+# ONYX-GATE Essential Submodules
+# Minimal dependencies for Premium Pre-Boot Authentication
+
+# Build and Testing Framework
+[submodule "external/googletest"]
+	path = external/googletest
+	url = https://github.com/google/googletest.git
+	branch = main
+
+[submodule "external/buildroot"]
+	path = external/buildroot
+	url = https://github.com/buildroot/buildroot.git
+	branch = master
+
+# FIPS 140-3 Cryptography (government-grade, NIST validated)
+# Note: Checkout openssl-3.1.8 after adding (latest FIPS-compatible release)
+[submodule "external/openssl"]
+	path = external/openssl
+	url = https://github.com/openssl/openssl.git
+
+# FIDO2/WebAuthn Authentication (YubiKey support)
+[submodule "external/libfido2"]
+	path = external/libfido2
+	url = https://github.com/Yubico/libfido2.git
+	branch = main
+
+# USB HID Communication (for YubiKey)
+[submodule "external/hidapi"]
+	path = external/hidapi
+	url = https://github.com/libusb/hidapi.git
+	branch = master
+
+# TCG OPAL Self-Encrypting Drive Support
+[submodule "external/sedutil"]
+	path = external/sedutil
+	url = https://github.com/Drive-Trust-Alliance/sedutil.git
+	branch = master
+
+# CBOR encoding/decoding (required by FIDO2)
+[submodule "external/libcbor"]
+	path = external/libcbor
+	url = https://github.com/PJK/libcbor.git
+	branch = master

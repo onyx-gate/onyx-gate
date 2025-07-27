@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ONYX-GATE - The Elegant Gateway to Unbreakable Security</title>
+    <meta name="description" content="Premium Pre-Boot Authentication with FIDO2 and anti-keylogger protection for TCG OPAL 2.0 self-encrypting drives">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #e1e1e1;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 50%, #2d2d2d 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            padding: 2rem 0;
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            border-bottom: 2px solid #333;
+        }
+
+        .logo {
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+        }
+
+        .tagline {
+            font-size: 1.3rem;
+            color: #cccccc;
+            margin-bottom: 2rem;
+            font-style: italic;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
+                        url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="1" fill="%23333"/><circle cx="80" cy="40" r="1" fill="%23333"/><circle cx="40" cy="80" r="1" fill="%23333"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+        }
+
+        .hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            color: #cccccc;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            padding: 4rem 0;
+        }
+
+        .feature {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature:hover {
+            transform: translateY(-5px);
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .feature h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        .feature p {
+            color: #cccccc;
+            line-height: 1.6;
+        }
+
+        .cta {
+            text-align: center;
+            padding: 4rem 0;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: linear-gradient(45deg, #333, #555);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 0 1rem;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn:hover {
+            background: linear-gradient(45deg, #555, #777);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #0066cc, #0088ff);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(45deg, #0088ff, #00aaff);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            border-top: 1px solid #333;
+            color: #888;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 2.5rem;
+            }
+            
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">🖤 ONYX-GATE</div>
+            <div class="tagline">The elegant gateway to unbreakable security</div>
+            <div class="status-badge">🚧 Pre-Alpha Development</div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Premium Pre-Boot Authentication</h1>
+            <p>World's first open source PBA with FIDO2 authentication and anti-keylogger protection for TCG OPAL 2.0 self-encrypting drives</p>
+            
+            <a href="https://github.com/onyx-gate/onyx-gate" class="btn btn-primary">View on GitHub</a>
+            <a href="#features" class="btn">Learn More</a>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <div class="feature">
+                <span class="feature-icon">🎮</span>
+                <h3>Anti-Keylogger Virtual Keyboard</h3>
+                <p>Revolutionary randomized layout defeats all keylogger attacks. Navigate with arrow keys for complete protection against software, hardware, and acoustic keyloggers.</p>
+            </div>
+
+            <div class="feature">
+                <span class="feature-icon">🔑</span>
+                <h3>Modern FIDO2/WebAuthn</h3>
+                <p>Hardware-bound authentication with YubiKey support. True two-factor security with challenge-response protocol that generates unique unlock keys per boot.</p>
+            </div>
+
+            <div class="feature">
+                <span class="feature-icon">🏛️</span>
+                <h3>FIPS 140-2 Cryptography</h3>
+                <p>Government-grade security built on OpenSSL FIPS validated modules. Mandatory self-tests and compliance-ready for federal deployment.</p>
+            </div>
+
+            <div class="feature">
+                <span class="feature-icon">🔓</span>
+                <h3>Universal Hardware Support</h3>
+                <p>Works with any TCG OPAL 2.0 drive - Samsung, Intel, WD, Seagate, Micron. No vendor lock-in, full hardware freedom.</p>
+            </div>
+
+            <div class="feature">
+                <span class="feature-icon">📊</span>
+                <h3>100% Disk Protection</h3>
+                <p>Shadow MBR technology ensures complete disk encryption including metadata. No unencrypted boot partitions or security compromises.</p>
+            </div>
+
+            <div class="feature">
+                <span class="feature-icon">🌟</span>
+                <h3>Open Source Transparency</h3>
+                <p>Fully auditable security implementation. Community-driven development with independent security reviews and peer validation.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2>Ready to Secure Your Data?</h2>
+            <p>Join the revolution in hardware-based security</p>
+            <br>
+            <a href="https://github.com/onyx-gate/onyx-gate" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com/onyx-gate/onyx-gate/blob/main/README.md" class="btn">Documentation</a>
+            <a href="https://github.com/onyx-gate/onyx-gate/issues" class="btn">Report Issues</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 ONYX-GATE Project. Released under MIT License.</p>
+            <p>Building the future of hardware-based security, one commit at a time.</p>
+        </div>
+    </footer>
+</body>
+</html>
