@@ -97,3 +97,6 @@ BR2_PACKAGE_BUSYBOX_SHOW_OTHERS=y
 # NETWORKING (Future: Remote Authentication)
 # ----------------------------------------------------------------------------
 # BR2_PACKAGE_DHCPCD=y
+
+# FIX PERMISSION'S SCRIPT
+BR2_ROOTFS_POST_BUILD_SCRIPT="../../board/onyx-gate/post-build.sh"
