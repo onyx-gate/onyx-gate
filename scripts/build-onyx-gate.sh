@@ -121,7 +121,7 @@ echo "✅ Overlay updated successfully"
 echo ""
 echo "🧠 Step 4: Smart build analysis..."
 
-# Build strategy detection functions
+# Build strategy detection functions (following Buildroot best practices)
 needs_full_rebuild() {
     # Always full rebuild in CI
     if [ "$CI_BUILD" = "true" ]; then
@@ -150,20 +150,20 @@ needs_full_rebuild() {
     return 1
 }
 
-needs_image_rebuild() {
+needs_rootfs_rebuild() {
     # Check if any output images exist
     if [ ! -f "buildroot-output/images/rootfs.cpio.gz" ]; then
         echo "No images found"
         return 0
     fi
 
-    # Image rebuild if PBA binary changed
+    # Rootfs rebuild if PBA binary changed
     if [ build/src/onyx-gate-pba -nt buildroot-output/images/rootfs.cpio.gz ]; then
         echo "PBA binary updated"
         return 0
     fi
 
-    # Image rebuild if overlay files changed
+    # Rootfs rebuild if overlay files changed
     if find board/onyx-gate/rootfs-overlay -newer buildroot-output/images/rootfs.cpio.gz 2>/dev/null | grep -q .; then
         echo "Overlay files updated"
         return 0
@@ -179,9 +179,9 @@ BUILD_REASON=""
 if needs_full_rebuild; then
     BUILD_STRATEGY="full"
     BUILD_REASON=$(needs_full_rebuild 2>&1 | head -1)
-elif needs_image_rebuild; then
-    BUILD_STRATEGY="images"
-    BUILD_REASON=$(needs_image_rebuild 2>&1 | head -1)
+elif needs_rootfs_rebuild; then
+    BUILD_STRATEGY="rootfs"
+    BUILD_REASON=$(needs_rootfs_rebuild 2>&1 | head -1)
 fi
 
 echo "   Build strategy: $BUILD_STRATEGY"
@@ -211,17 +211,19 @@ case "$BUILD_STRATEGY" in
         make O=../../buildroot-output -j$(($(nproc) - 1))
         ;;
 
-    "images")
-        echo "   → Quick image rebuild (~1-2 minutes)"
+    "rootfs")
+        echo "   → Smart rootfs rebuild (~1-2 minutes)"
         echo "     - Using existing compiled packages"
-        echo "     - Updating overlay integration"
+        echo "     - Updating target filesystem"
         echo "     - Regenerating filesystem images"
 
-        # Force rebuild of target filesystem and images
-        rm -rf buildroot-output/target/usr/bin/onyx-gate-pba
-        rm -f buildroot-output/images/rootfs.*
+        # Use Buildroot's stamp system for efficient rebuild
+        # Remove target and image stamps to force rootfs rebuild
+        find buildroot-output/build/ -name ".stamp_target_installed" -delete 2>/dev/null || true
+        rm -rf buildroot-output/target 2>/dev/null || true
+        rm -f buildroot-output/images/rootfs.* 2>/dev/null || true
 
-        # Rebuild only images (much faster)
+        # Rebuild target filesystem and images only
         make O=../../buildroot-output target-finalize
         make O=../../buildroot-output rootfs-cpio-gzip rootfs-ext2
         ;;
