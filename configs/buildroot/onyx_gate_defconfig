@@ -36,7 +36,7 @@ BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_DEVTMPFS=y
 # BOARD-SPECIFIC FILES
 # ----------------------------------------------------------------------------
 # Root filesystem overlay containing our PBA application and configs
-BR2_ROOTFS_OVERLAY="board/onyx-gate/rootfs-overlay"
+BR2_ROOTFS_OVERLAY="../../board/onyx-gate/rootfs-overlay"
 
 # ----------------------------------------------------------------------------
 # FILESYSTEM IMAGES

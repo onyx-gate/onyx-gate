@@ -78,7 +78,13 @@ jobs:
             cmake \
             qemu-system-x86 \
             grub-pc-bin \
-            grub2-common
+            grub2-common \
+            libelf-dev \
+            libssl-dev \
+            bc \
+            flex \
+            bison \
+            rsync
 
       - name: "⚙️ Configure CMake"
         run: |
