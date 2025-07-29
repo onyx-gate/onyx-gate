@@ -1,0 +1,79 @@
+#!/bin/sh
+# ============================================================================
+# ONYX-GATE PBA Auto-Start Service
+# ============================================================================
+#
+# This SysV init script automatically starts the ONYX-GATE PBA when the
+# system boots. It provides the main user interface for pre-boot authentication.
+#
+# Service: S99onyx-pba (starts last, after all system services)
+# Binary: /usr/bin/onyx-gate-pba
+# Purpose: Pre-boot authentication and drive unlocking
+#
+# ============================================================================
+
+case "$1" in
+    start)
+        echo "🖤 Starting ONYX-GATE PBA..."
+        clear
+        echo ""
+        echo "🖤 ONYX-GATE Pre-Boot Authentication"
+        echo "   The elegant gateway to unbreakable security"
+        echo ""
+
+        # Get system version info
+        if [ -f /etc/os-release ]; then
+            VERSION=$(grep 'VERSION=' /etc/os-release | cut -d= -f2 | tr -d '"' 2>/dev/null || echo "Unknown")
+        else
+            VERSION="Development Build"
+        fi
+
+        echo "   System Version: $VERSION"
+        echo "   Build Date: $(date -u 2>/dev/null || echo 'Unknown')"
+        echo ""
+
+        # Execute the main PBA application
+        # In production, this handles user authentication and drive unlocking
+        if [ -x /usr/bin/onyx-gate-pba ]; then
+            /usr/bin/onyx-gate-pba
+        else
+            echo "❌ ERROR: PBA binary not found at /usr/bin/onyx-gate-pba"
+            echo "   Check build configuration and overlay setup"
+            exit 1
+        fi
+
+        echo ""
+        echo "🎉 PBA Authentication Complete"
+        echo "   In production: Drive would be unlocked and system rebooted"
+        echo ""
+        echo "   Press Ctrl+Alt+Del to restart system"
+        ;;
+
+    stop)
+        echo "Stopping ONYX-GATE PBA..."
+        # Graceful shutdown (currently no cleanup needed)
+        # In production: securely clear memory, log shutdown
+        ;;
+
+    restart)
+        $0 stop
+        $0 start
+        ;;
+
+    status)
+        if pgrep -x onyx-gate-pba >/dev/null; then
+            echo "ONYX-GATE PBA is running"
+            exit 0
+        else
+            echo "ONYX-GATE PBA is not running"
+            exit 1
+        fi
+        ;;
+
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0

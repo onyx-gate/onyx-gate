@@ -1,65 +1,85 @@
 #!/bin/bash
 # ============================================================================
-# ONYX-GATE Pre-Boot Authentication (PBA) - Complete Build Script
+# ONYX-GATE Pre-Boot Authentication (PBA) - Clean Build Script
 # ============================================================================
 #
-# This script builds the complete ONYX-GATE PBA system from source code to
-# deployable images. It creates bootable IMG files for Shadow MBR deployment
-# on TCG OPAL self-encrypting drives and individual files for testing.
+# Умная система сборки использующая существующие файлы проекта:
+# - Все конфигурации хранятся в git-репозитории
+# - Умная пересборка только измененных компонентов
+# - Правильная структура проекта с board/ директорией
+# - Совместимость с CI/CD
 #
-# Build Process Overview:
-#   1. Compile C application (PBA binary)
-#   2. Run unit tests to verify functionality
-#   3. Create Linux overlay with PBA integration
-#   4. Build minimal Linux system via Buildroot
-#   5. Generate bootable IMG + testing files
-#   6. Create checksums for verification
-#
-# Build Time: ~10-15 minutes (depends on system specs)
-# Output: bzImage, rootfs.cpio.gz, bootable IMG, checksums
-# Target: x86_64 systems with TCG OPAL 2.0 drives
-#
-# Usage: ./scripts/build-onyx-gate.sh
-# Prerequisites: cmake, make, gcc, git, buildroot submodules
+# Файлы проекта:
+# - configs/buildroot/onyx_gate_defconfig - Buildroot конфигурация
+# - board/onyx-gate/rootfs-overlay/ - Overlay файловой системы
+# - board/onyx-gate/grub.cfg - GRUB конфигурация
 #
 # ============================================================================
 
 set -e  # Exit immediately if any command fails
 
-echo "🖤 ONYX-GATE Complete Build Process"
-echo "======================================"
+echo "🖤 ONYX-GATE Clean Build System"
+echo "==============================="
 
 # ----------------------------------------------------------------------------
 # BUILD ENVIRONMENT SETUP
 # ----------------------------------------------------------------------------
-# Extract version information from git for build traceability
-# This appears in the PBA interface and build artifacts
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_DATE=$(date -u)
 BUILD_HOST=$(hostname)
+CI_BUILD=${CI:-false}
 
 echo "📋 Build Environment:"
 echo "   Version: $VERSION"
 echo "   Date: $BUILD_DATE"
 echo "   Host: $BUILD_HOST"
 echo "   CPU Cores: $(nproc)"
+echo "   CI Build: $CI_BUILD"
 echo ""
 
 # ============================================================================
-# STEP 1: C APPLICATION BUILD & TESTING
+# STEP 1: VALIDATE PROJECT STRUCTURE
 # ============================================================================
-echo "🔧 Step 1: Building C application..."
-echo "   Purpose: Compile the core PBA binary that handles user authentication"
-echo "   Components: main.c (UI logic) + logger.c (logging system)"
-echo "   Output: build/src/onyx-gate-pba (~16KB executable)"
+echo "🔍 Step 1: Validating project structure..."
 
-# Clean any previous build artifacts to ensure fresh compilation
-# This prevents issues with cached CMake configurations or stale objects
+# Check required files exist
+REQUIRED_FILES=(
+    "configs/buildroot/onyx_gate_defconfig"
+    "board/onyx-gate/rootfs-overlay/etc/init.d/S99onyx-pba"
+    "board/onyx-gate/grub.cfg"
+    "src/main.c"
+    "src/logger.c"
+)
+
+echo "   → Checking required files..."
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        echo "   ❌ Missing required file: $file"
+        echo ""
+        echo "Please create the missing files. Run:"
+        echo "mkdir -p board/onyx-gate/rootfs-overlay/etc/init.d"
+        echo "mkdir -p configs/buildroot"
+        exit 1
+    fi
+    echo "   ✓ $file"
+done
+
+# Ensure directories exist
+mkdir -p board/onyx-gate/rootfs-overlay/usr/bin
+mkdir -p images/{img,checksums}
+
+echo "✅ Project structure validated"
+
+# ============================================================================
+# STEP 2: C APPLICATION BUILD & TESTING
+# ============================================================================
+echo ""
+echo "🔧 Step 2: Building C application..."
+
+# Clean previous build
 rm -rf build
 
-# Configure CMake build system with optimized release settings
-# -DCMAKE_BUILD_TYPE=Release: Optimized binary for production deployment
-# -DBUILD_TESTING=ON: Enable unit tests to verify functionality
+# Configure and build
 cmake -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTING=ON \
@@ -68,13 +88,9 @@ cmake -B build \
 echo "   → Compiling with $(nproc) parallel jobs..."
 cmake --build build --parallel $(nproc)
 
-# Run comprehensive test suite to verify PBA functionality
-# This catches regressions and ensures the PBA works correctly
 echo "   → Running unit tests..."
 cd build && ctest --output-on-failure && cd ..
 
-# Test the actual PBA binary in test mode (non-interactive)
-# This verifies the binary can start, display interface, and exit cleanly
 echo "   → Testing PBA binary..."
 ./build/src/onyx-gate-pba --test
 
@@ -82,140 +98,179 @@ echo "✅ C application built and tested successfully"
 echo "   Binary size: $(du -h build/src/onyx-gate-pba | cut -f1)"
 
 # ============================================================================
-# STEP 2: PBA INTEGRATION ENVIRONMENT
+# STEP 3: UPDATE OVERLAY WITH LATEST BINARY
 # ============================================================================
 echo ""
-echo "📦 Step 2: Preparing PBA integration environment..."
-echo "   Purpose: Create overlay filesystem that integrates PBA into Linux"
-echo "   Method: Buildroot overlay system for clean integration"
-
-# Clean any previous overlay to ensure fresh integration
-# The overlay contains files that get copied into the Linux root filesystem
-rm -rf buildroot-output/target-overlay
-mkdir -p buildroot-output/target-overlay/{usr/bin,etc/init.d}
+echo "📦 Step 3: Updating filesystem overlay..."
 
 echo "   → Installing PBA binary to overlay..."
-# Copy the compiled PBA binary to the overlay's /usr/bin directory
-# This makes it available as a system command in the final Linux image
-cp build/src/onyx-gate-pba buildroot-output/target-overlay/usr/bin/
-chmod +x buildroot-output/target-overlay/usr/bin/onyx-gate-pba
+cp build/src/onyx-gate-pba board/onyx-gate/rootfs-overlay/usr/bin/
+chmod +x board/onyx-gate/rootfs-overlay/usr/bin/onyx-gate-pba
 
-echo "   → Creating PBA auto-start service..."
-# Create SysV init script that automatically starts the PBA on boot
-# S99 = starts last in boot sequence, after all system services
-cat > buildroot-output/target-overlay/etc/init.d/S99onyx-pba << 'INIT_EOF'
-#!/bin/sh
-# ONYX-GATE PBA Auto-Start Service
-# This script runs automatically when the PBA system boots
-# It provides the main user interface for pre-boot authentication
+echo "   → Verifying overlay structure..."
+echo "   Files in overlay: $(find board/onyx-gate/rootfs-overlay -type f | wc -l)"
+find board/onyx-gate/rootfs-overlay -type f | while read file; do
+    echo "     $(ls -la "$file" | awk '{print $1, $9}')"
+done
 
-case "$1" in
-    start)
-        echo "🖤 Starting ONYX-GATE PBA..."
-        clear
-        echo ""
-        echo "🖤 ONYX-GATE Pre-Boot Authentication"
-        echo "   The elegant gateway to unbreakable security"
-        echo ""
-        echo "   System Version: 65165d9-dirty"
-        echo "   Build Date: $(date -u)"
-        echo ""
-
-        # Execute the main PBA application
-        # In production, this handles user authentication and drive unlocking
-        /usr/bin/onyx-gate-pba
-
-        echo ""
-        echo "🎉 PBA Authentication Complete"
-        echo "   In production: Drive would be unlocked and system rebooted"
-        echo ""
-        echo "   Press Ctrl+Alt+Del to restart system"
-        ;;
-    stop)
-        echo "Stopping ONYX-GATE PBA..."
-        # Graceful shutdown (currently no cleanup needed)
-        ;;
-    *)
-        echo "Usage: $0 {start|stop}"
-        exit 1
-        ;;
-esac
-exit 0
-INIT_EOF
-
-chmod +x buildroot-output/target-overlay/etc/init.d/S99onyx-pba
-
-echo "✅ PBA integration environment prepared"
-echo "   Overlay files: $(find buildroot-output/target-overlay -type f | wc -l)"
+echo "✅ Overlay updated successfully"
 
 # ============================================================================
-# STEP 3: LINUX SYSTEM BUILD
+# STEP 4: SMART BUILD ANALYSIS
 # ============================================================================
 echo ""
-echo "🔨 Step 3: Building minimal Linux system..."
-echo "   Purpose: Create bootable Linux environment for PBA execution"
-echo "   Method: Buildroot cross-compilation system"
-echo "   Duration: ~10-15 minutes (depending on system performance)"
+echo "🧠 Step 4: Smart build analysis..."
 
-# Clean previous Buildroot artifacts to ensure consistent builds
-# This removes compiled packages, kernel, and filesystem images
-echo "   → Cleaning previous Linux build artifacts..."
-rm -rf buildroot-output/build buildroot-output/images buildroot-output/target
-rm -f buildroot-output/.config* buildroot-output/Makefile
+# Build strategy detection functions
+needs_full_rebuild() {
+    # Always full rebuild in CI
+    if [ "$CI_BUILD" = "true" ]; then
+        echo "CI environment detected"
+        return 0
+    fi
 
-echo "   → Configuring Linux build system..."
+    # Full rebuild if no previous build
+    if [ ! -d "buildroot-output" ] || [ ! -f "buildroot-output/.config" ]; then
+        echo "No previous build found"
+        return 0
+    fi
+
+    # Full rebuild if defconfig changed
+    if [ configs/buildroot/onyx_gate_defconfig -nt buildroot-output/.config ]; then
+        echo "Buildroot configuration changed"
+        return 0
+    fi
+
+    # Full rebuild if build script changed
+    if [ "$0" -nt buildroot-output/.config ]; then
+        echo "Build script updated"
+        return 0
+    fi
+
+    return 1
+}
+
+needs_image_rebuild() {
+    # Check if any output images exist
+    if [ ! -f "buildroot-output/images/rootfs.cpio.gz" ]; then
+        echo "No images found"
+        return 0
+    fi
+
+    # Image rebuild if PBA binary changed
+    if [ build/src/onyx-gate-pba -nt buildroot-output/images/rootfs.cpio.gz ]; then
+        echo "PBA binary updated"
+        return 0
+    fi
+
+    # Image rebuild if overlay files changed
+    if find board/onyx-gate/rootfs-overlay -newer buildroot-output/images/rootfs.cpio.gz 2>/dev/null | grep -q .; then
+        echo "Overlay files updated"
+        return 0
+    fi
+
+    return 1
+}
+
+# Determine build strategy
+BUILD_STRATEGY="none"
+BUILD_REASON=""
+
+if needs_full_rebuild; then
+    BUILD_STRATEGY="full"
+    BUILD_REASON=$(needs_full_rebuild 2>&1 | head -1)
+elif needs_image_rebuild; then
+    BUILD_STRATEGY="images"
+    BUILD_REASON=$(needs_image_rebuild 2>&1 | head -1)
+fi
+
+echo "   Build strategy: $BUILD_STRATEGY"
+echo "   Reason: $BUILD_REASON"
+
+# ============================================================================
+# STEP 5: EXECUTE BUILD STRATEGY
+# ============================================================================
+echo ""
+echo "🔨 Step 5: Executing build strategy ($BUILD_STRATEGY)..."
+
 cd external/buildroot
 
-# Load ONYX-GATE specific Buildroot configuration
-# This defines what packages, kernel version, and settings to use
-make O=../../buildroot-output BR2_DEFCONFIG=../../configs/buildroot/onyx_defconfig defconfig
+case "$BUILD_STRATEGY" in
+    "full")
+        echo "   → Full system rebuild (~10-15 minutes)"
+        echo "     - Cleaning previous artifacts"
+        echo "     - Loading ONYX-GATE defconfig"
+        echo "     - Compiling Linux kernel and packages"
+        echo "     - Creating filesystem images"
 
-# Configure the overlay system to include our PBA files
-# This tells Buildroot to copy our overlay files into the root filesystem
-echo 'BR2_ROOTFS_OVERLAY="../../buildroot-output/target-overlay"' >> ../../buildroot-output/.config
+        # Clean and reconfigure
+        make O=../../buildroot-output clean
+        make O=../../buildroot-output BR2_DEFCONFIG=../../configs/buildroot/onyx_gate_defconfig defconfig
 
-echo "   → Starting Linux compilation (this takes ~10-15 minutes)..."
-echo "     - Downloading and compiling Linux kernel"
-echo "     - Building BusyBox utilities"
-echo "     - Creating root filesystem"
-echo "     - Integrating PBA overlay"
-echo "     - Generating bootable images"
+        # Full build
+        make O=../../buildroot-output -j$(($(nproc) - 1))
+        ;;
 
-# Build the complete Linux system with parallel compilation
-# Uses (cores-1) to leave one CPU core available for system responsiveness
-make O=../../buildroot-output -j$(($(nproc) - 1))
+    "images")
+        echo "   → Quick image rebuild (~1-2 minutes)"
+        echo "     - Using existing compiled packages"
+        echo "     - Updating overlay integration"
+        echo "     - Regenerating filesystem images"
+
+        # Force rebuild of target filesystem and images
+        rm -rf buildroot-output/target/usr/bin/onyx-gate-pba
+        rm -f buildroot-output/images/rootfs.*
+
+        # Rebuild only images (much faster)
+        make O=../../buildroot-output target-finalize
+        make O=../../buildroot-output rootfs-cpio-gzip rootfs-ext2
+        ;;
+
+    "none")
+        echo "   → No rebuild needed, using cached artifacts"
+        if [ ! -f "../../buildroot-output/images/rootfs.cpio.gz" ]; then
+            echo "   ⚠️  Warning: No images found despite analysis, forcing full rebuild"
+            BUILD_STRATEGY="full"
+            make O=../../buildroot-output clean
+            make O=../../buildroot-output BR2_DEFCONFIG=../../configs/buildroot/onyx_gate_defconfig defconfig
+            make O=../../buildroot-output -j$(($(nproc) - 1))
+        fi
+        ;;
+esac
 
 cd ../..
 
-echo "✅ Linux system built successfully"
-echo "   Kernel: $(ls buildroot-output/images/bzImage 2>/dev/null && echo "✓ Present" || echo "✗ Missing")"
-echo "   Root FS: $(ls buildroot-output/images/rootfs.* 2>/dev/null | wc -l) filesystem images"
+# Verify build results
+if [ ! -f "buildroot-output/images/bzImage" ]; then
+    echo "❌ Build failed: kernel image not found"
+    exit 1
+fi
+
+if [ ! -f "buildroot-output/images/rootfs.cpio.gz" ]; then
+    echo "❌ Build failed: root filesystem not found"
+    exit 1
+fi
+
+echo "✅ Build completed successfully"
+echo "   Strategy used: $BUILD_STRATEGY ($BUILD_REASON)"
+echo "   Kernel: ✓ Present ($(du -h buildroot-output/images/bzImage | cut -f1))"
+echo "   Root FS: ✓ Present ($(du -h buildroot-output/images/rootfs.cpio.gz | cut -f1))"
 
 # ============================================================================
-# STEP 4: DEPLOYABLE IMAGE CREATION
+# STEP 6: DEPLOYABLE IMAGE CREATION
 # ============================================================================
 echo ""
-echo "📀 Step 4: Creating deployable images..."
-echo "   Purpose: Generate images for testing and production deployment"
+echo "📀 Step 6: Creating deployable images..."
 
-# Create output directory structure for organized image storage
-mkdir -p images/{img,checksums}
-
-echo "   → Copying kernel and rootfs for direct testing..."
-# Copy kernel and rootfs for direct QEMU testing
-# These files allow direct kernel boot for development and testing
+echo "   → Copying files for direct testing..."
 cp buildroot-output/images/bzImage "images/bzImage"
 cp buildroot-output/images/rootfs.cpio.gz "images/rootfs.cpio.gz"
 
 echo "   → Creating bootable IMG for production deployment..."
-# Create proper bootable disk image suitable for Shadow MBR deployment
-# This creates a 32MB disk image with MBR partition table and ext2 filesystem
-
-# Step 1: Create empty disk image
+# Create bootable disk image with proper structure
 dd if=/dev/zero of="images/img/onyx-gate-pba-$VERSION.img" bs=1M count=32 2>/dev/null
 
-# Step 2: Create partition table (MBR with single Linux partition)
-echo "   → Setting up IMG partition table..."
+# Create MBR partition table
 fdisk "images/img/onyx-gate-pba-$VERSION.img" >/dev/null 2>&1 << FDISK_EOF
 n
 p
@@ -227,67 +282,42 @@ a
 w
 FDISK_EOF
 
-# Step 3: Setup loop device for partition access
+# Setup loop device and format
 LOOP_DEVICE=$(sudo losetup -f --show "images/img/onyx-gate-pba-$VERSION.img")
 sudo partprobe $LOOP_DEVICE
-
-# Step 4: Format the partition as ext2
-echo "   → Creating ext2 filesystem on IMG..."
 sudo mkfs.ext2 -F "${LOOP_DEVICE}p1" >/dev/null 2>&1
 
-# Step 5: Mount partition and copy files
-echo "   → Installing files to IMG..."
+# Mount and populate IMG
 IMG_MOUNT="/tmp/onyx-img-mount"
 sudo mkdir -p $IMG_MOUNT
 sudo mount "${LOOP_DEVICE}p1" $IMG_MOUNT
 
-# Copy kernel and initrd to the IMG
+# Copy kernel and initrd
 sudo mkdir -p $IMG_MOUNT/boot
 sudo cp buildroot-output/images/bzImage $IMG_MOUNT/boot/
 sudo cp buildroot-output/images/rootfs.cpio.gz $IMG_MOUNT/boot/initrd
 
-# Create basic GRUB configuration for the IMG
+# Install GRUB configuration
 sudo mkdir -p $IMG_MOUNT/boot/grub
-sudo tee $IMG_MOUNT/boot/grub/grub.cfg >/dev/null << GRUB_EOF
-set timeout=5
-set default=0
+sudo cp board/onyx-gate/grub.cfg $IMG_MOUNT/boot/grub/
 
-menuentry "🖤 ONYX-GATE PBA" {
-    linux /boot/bzImage root=/dev/ram0 rw init=/sbin/init console=tty1 console=ttyS0,115200 quiet splash
-    initrd /boot/initrd
-}
-
-menuentry "ONYX-GATE PBA (Recovery Mode)" {
-    linux /boot/bzImage root=/dev/ram0 rw init=/bin/sh console=tty1 console=ttyS0,115200
-    initrd /boot/initrd
-}
-
-menuentry "ONYX-GATE PBA (Debug Mode)" {
-    linux /boot/bzImage root=/dev/ram0 rw init=/sbin/init console=tty1 console=ttyS0,115200 debug
-    initrd /boot/initrd
-}
-GRUB_EOF
-
-# Install GRUB bootloader to the IMG
-echo "   → Installing GRUB bootloader to IMG..."
+# Install GRUB bootloader
+echo "   → Installing GRUB bootloader..."
 sudo grub-install --target=i386-pc --boot-directory=$IMG_MOUNT/boot --force --no-floppy $LOOP_DEVICE >/dev/null 2>&1
 
-# Cleanup mounts and loop device
+# Cleanup
 sudo umount $IMG_MOUNT
 sudo rmdir $IMG_MOUNT
 sudo losetup -d $LOOP_DEVICE
 
-echo "   → Creating compressed image for distribution..."
-# Create compressed version for easier network distribution and storage
+echo "   → Creating compressed image..."
 gzip -k "images/img/onyx-gate-pba-$VERSION.img"
 
-echo "   → Generating integrity checksums..."
-# Create SHA256 checksums for image verification and integrity checking
-# This allows users to verify their downloads haven't been corrupted
+echo "   → Generating checksums and manifest..."
 cd images
 find . -name "bzImage" -o -name "*.cpio.gz" -o -name "*.img" -o -name "*.gz" | sort | xargs sha256sum > checksums/sha256sums.txt
 
-# Create build manifest with detailed information
+# Create detailed build manifest
 cat > checksums/build-manifest.txt << MANIFEST_EOF
 ONYX-GATE PBA Build Manifest
 ============================
@@ -296,22 +326,21 @@ Build Information:
 - Version: $VERSION
 - Build Date: $BUILD_DATE
 - Build Host: $BUILD_HOST
+- Build Strategy: $BUILD_STRATEGY
+- Build Reason: $BUILD_REASON
 - Git Commit: $(git rev-parse HEAD 2>/dev/null | cut -c1-8)
-- Builder: ONYX-GATE Build System v2.0
+
+Project Structure:
+- Buildroot Config: configs/buildroot/onyx_gate_defconfig
+- Board Files: board/onyx-gate/
+- Overlay System: board/onyx-gate/rootfs-overlay/
+- GRUB Config: board/onyx-gate/grub.cfg
 
 Generated Files:
 $(find . -name "bzImage" -o -name "*.cpio.gz" -o -name "*.img" -o -name "*.gz" | sort | while read file; do
     size=$(du -h "$file" | cut -f1)
     echo "- $file ($size)"
 done)
-
-System Specifications:
-- Target Architecture: x86_64 (Intel/AMD 64-bit)
-- Linux Kernel: Latest stable via Buildroot
-- Root Filesystem: Compressed initrd (~3MB)
-- Bootloader: GRUB2 (BIOS compatible)
-- Init System: BusyBox
-- PBA Application: Integrated via overlay
 
 Testing Instructions:
 1. Direct Kernel Boot (Development):
@@ -323,11 +352,16 @@ Testing Instructions:
 3. Shadow MBR Deployment:
    sedutil-cli --loadPBAimage img/onyx-gate-pba-$VERSION.img /dev/nvme0n1
 
-Expected Behavior:
-- System boots to ONYX-GATE PBA interface
-- Displays authentication prompt
-- Currently: Shows "Hello World" and waits for input
-- Future: FIDO2 authentication + drive unlocking
+Development Workflow:
+- Edit source files in src/
+- Run: ./scripts/build-onyx-gate.sh
+- Expected time: 30-60 seconds (incremental build)
+- Test: Use QEMU commands above
+
+Project Files (version controlled):
+- All configuration files are in git
+- No generated files in build script
+- Clean separation of concerns
 MANIFEST_EOF
 
 cd ..
@@ -342,31 +376,35 @@ echo "🎉 BUILD COMPLETED SUCCESSFULLY!"
 echo "================================="
 echo ""
 echo "📊 Build Statistics:"
-echo "   Duration: Started at $(date -u)"
+echo "   Strategy: $BUILD_STRATEGY ($BUILD_REASON)"
 echo "   Version: $VERSION"
 echo "   Host: $BUILD_HOST"
 echo ""
 echo "📦 Generated Files:"
-ls -la images/ images/img/ images/checksums/ 2>/dev/null | grep -v "^total" | while read -r line; do
-    echo "   $line"
-done
-echo ""
-echo "🔍 File Sizes:"
 find images/ -name "bzImage" -o -name "*.cpio.gz" -o -name "*.img" -o -name "*.gz" | sort | while read file; do
     size=$(du -h "$file" | cut -f1)
     echo "   $file: $size"
 done
 echo ""
-echo "🧪 Testing Instructions:"
+echo "🚀 Development Optimization:"
+if [ "$BUILD_STRATEGY" = "full" ]; then
+    echo "   ✓ Full build completed - next changes will be incremental"
+    echo "   ✓ Estimated time for PBA changes: 30-60 seconds"
+else
+    echo "   ✓ Incremental build used - significant time saved!"
+    echo "   ✓ Build optimization working correctly"
+fi
+echo ""
+echo "🧪 Testing Commands:"
 echo "   Direct Boot:  qemu-system-x86_64 -m 512M -kernel images/bzImage -initrd images/rootfs.cpio.gz -append \"root=/dev/ram0 rw init=/sbin/init console=ttyS0,115200\" -nographic"
 echo "   IMG Boot:     qemu-system-x86_64 -m 512M -hda images/img/onyx-gate-pba-$VERSION.img -nographic"
-echo "   Production:   Deploy images/img/onyx-gate-pba-$VERSION.img to Shadow MBR"
 echo ""
-echo "📋 Verification:"
-echo "   Checksums:    cat images/checksums/sha256sums.txt"
-echo "   Manifest:     cat images/checksums/build-manifest.txt"
+echo "📁 Project Structure:"
+echo "   configs/buildroot/        - Build configurations (version controlled)"
+echo "   board/onyx-gate/          - ONYX-GATE specific files (version controlled)"
+echo "   images/                   - Generated deployable files (not in git)"
 echo ""
-echo "🚀 Your ONYX-GATE PBA system is ready for deployment!"
+echo "💡 All configuration files are now in git - no generated files!"
 echo ""
 
 exit 0
